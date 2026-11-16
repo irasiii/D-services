@@ -18,8 +18,8 @@
     "dev:courier": "npm run dev -w @d-services/courier-web"
   },
   "devDependencies": {
-    "@types/node": "^22.20.5",
-    "typescript": "~5.9",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
     "vitest": "^5.1.0"
   }
 }

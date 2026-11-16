@@ -34,7 +34,7 @@ Each new service gets its own app under `apps/` and reuses the same API.
 
 ## Run it locally
 
-Needs Node.js 22+ and Docker (for PostgreSQL).
+Needs Node.js 22 or newer and Docker (for PostgreSQL). CI and the container images use Node.js 26.
 
 ```
 docker compose up -d db              # PostgreSQL on localhost:5432
