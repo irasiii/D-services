@@ -1,0 +1,24 @@
+# Application Load Balancer, created by the AWS Load Balancer Controller.
+# "internal" keeps it reachable only from inside the VPC. Do not switch to
+# "internet-facing" until the API has sign-in and permissions (Jira DS-10).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: d-services
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: courier-web
+                port:
+                  number: 80

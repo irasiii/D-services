@@ -25,6 +25,7 @@ and adjustable per provider.
 packages/charging/     Shared charging rules: fee split, platform pricing, vehicle classes (pure TypeScript)
 apps/api/              Core platform API: customers, providers, services, jobs, bids, charges (Fastify + PostgreSQL)
 apps/courier-web/      First service app: courier (React + Vite) with customer, driver and company views
+deploy/k8s/            Kubernetes manifests for AWS EKS (Kustomize: base + dev and prod overlays)
 .github/workflows/     CI and DevSecOps pipelines
 ```
 
@@ -35,7 +36,7 @@ Each new service gets its own app under `apps/` and reuses the same API.
 Needs Node.js 22+ and Docker (for PostgreSQL).
 
 ```
-docker compose up -d                 # PostgreSQL on localhost:5432
+docker compose up -d db              # PostgreSQL on localhost:5432
 npm install
 copy .env.example .env               # Windows (use cp on macOS/Linux)
 
@@ -53,6 +54,21 @@ Try the whole flow in the courier app: register a customer and book a delivery
 (**Send a parcel**), register a driver (**Drive**), approve the driver
 (**Company**), then accept, pick up and deliver the job. The charge appears
 under **Company** with the company fee and the driver payout.
+
+### Or run everything in containers
+
+```
+docker compose --profile app up --build
+```
+
+Courier app on <http://localhost:8080>, API on <http://localhost:3000>. These are
+the same images that run on Kubernetes.
+
+## Deploying to AWS
+
+The platform runs as Docker containers on Kubernetes (Amazon EKS), with images
+in Amazon ECR and the database on Amazon RDS for PostgreSQL. See
+[deploy/README.md](deploy/README.md).
 
 ## Tests
 
@@ -96,6 +112,7 @@ what the customer pays, what the company keeps, what the provider receives.
 - **Sign-in and permissions.** The API has no authentication: anyone who can reach it can call any endpoint. Do not expose it to the internet until this is done.
 - **Payments.** Charges are ledger records; no payment gateway is connected.
 - **Address search and road distance.** The app uses preset locations and straight-line distance.
+- **AWS infrastructure.** The images and Kubernetes manifests exist; the EKS cluster, ECR repositories and RDS database are not created yet.
 - **Mobile apps**, and the apps for the other five services.
 
 ## Pipelines
@@ -105,6 +122,7 @@ what the customer pays, what the company keeps, what the provider receives.
 | `ci.yml` | push to `main`, PRs | Lints workflows; type-checks, tests (with PostgreSQL) and builds everything; audits production dependencies |
 | `security.yml` | push to `main`, PRs, weekly | Gitleaks secret scan, Trivy dependency / IaC / secret scan (fails on fixable HIGH or CRITICAL), dependency review on PRs, SPDX SBOM artifact |
 | `codeql.yml` | push to `main`, PRs, weekly | CodeQL static analysis of the TypeScript code and the workflows |
+| `containers.yml` | push to `main`, PRs | Lints the Dockerfiles, builds both images, scans them with Trivy (fails on fixable HIGH or CRITICAL), validates the Kubernetes manifests; pushes images to Amazon ECR once AWS is connected |
 | `pr-jira-key.yml` | PRs | PR title must start with a Jira key, e.g. `DS-12 Add login endpoint` |
 
 All third-party actions are pinned to commit SHAs and kept current by Dependabot.

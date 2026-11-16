@@ -21,3 +21,14 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+  # Base images of the container builds
+  - package-ecosystem: docker
+    directories:
+      - /apps/api
+      - /apps/courier-web
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - dependencies

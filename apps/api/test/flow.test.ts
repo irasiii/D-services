@@ -61,8 +61,13 @@ describe('service catalogue', () => {
     expect(courier).toMatchObject({ pricingMode: 'PLATFORM', feeType: 'PERCENTAGE', feeBps: 1500 });
   });
 
-  it('running migrations again changes nothing', async () => {
-    expect(await migrate(db)).toEqual([]);
+  it('running migrations again changes nothing, even from several replicas at once', async () => {
+    expect(await Promise.all([migrate(db), migrate(db), migrate(db)])).toEqual([[], [], []]);
+  });
+
+  it('reports liveness and readiness', async () => {
+    expect((await call('GET', '/livez')).body).toEqual({ status: 'ok' });
+    expect((await call('GET', '/health')).body).toEqual({ status: 'ok' });
   });
 });
 

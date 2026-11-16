@@ -1,0 +1,114 @@
+name: Containers
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: containers-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+
+jobs:
+  image:
+    name: Build and scan (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write # upload scan results to the Security tab
+      id-token: write # sign in to AWS with OIDC (no stored access keys)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            dockerfile: apps/api/Dockerfile
+          - name: courier-web
+            dockerfile: apps/courier-web/Dockerfile
+    env:
+      IMAGE: d-services/${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Lint Dockerfile
+        env:
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: docker run --rm -i hadolint/hadolint:v2.15.1 < "$DOCKERFILE"
+
+      - name: Build image
+        env:
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: docker build -f "$DOCKERFILE" -t "$IMAGE:$GITHUB_SHA" .
+
+      - name: Scan image and report to code scanning
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
+          format: sarif
+          output: trivy-image.sarif
+          exit-code: "0"
+
+      - name: Upload SARIF
+        if: always() && hashFiles('trivy-image.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image-${{ matrix.name }}
+
+      - name: Gate - fail on fixable HIGH/CRITICAL in the image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      # Pushing to Amazon ECR is skipped until the repository variable AWS_ROLE_ARN is set
+      # (Settings > Secrets and variables > Actions > Variables). See deploy/README.md.
+      - name: Sign in to AWS
+        if: github.event_name == 'push' && vars.AWS_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sign in to Amazon ECR
+        id: ecr
+        if: github.event_name == 'push' && vars.AWS_ROLE_ARN != ''
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+
+      - name: Push image to Amazon ECR
+        if: github.event_name == 'push' && vars.AWS_ROLE_ARN != ''
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          docker tag "$IMAGE:$GITHUB_SHA" "$REGISTRY/$IMAGE:$GITHUB_SHA"
+          docker push "$REGISTRY/$IMAGE:$GITHUB_SHA"
+
+  manifests:
+    name: Validate Kubernetes manifests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Render and validate each environment
+        run: |
+          for overlay in dev prod; do
+            echo "::group::$overlay"
+            kubectl kustomize "deploy/k8s/overlays/$overlay" \
+              | docker run --rm -i ghcr.io/yannh/kubeconform:v0.8.0 -strict -summary -
+            echo "::endgroup::"
+          done

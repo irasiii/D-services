@@ -39,6 +39,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     return reply.status(500).send({ error: 'Internal server error' });
   });
 
+  // Liveness: the process is up. Readiness (/health) also checks the database.
+  app.get('/livez', async () => ({ status: 'ok' }));
+
   app.get('/health', async () => {
     await opts.db.query('SELECT 1');
     return { status: 'ok' };

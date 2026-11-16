@@ -1,0 +1,40 @@
+# Needs network policy enforcement on the cluster (on EKS: enable it in the VPC CNI add-on).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+# The load balancer sends traffic straight to the courier-web pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: courier-web-allow-http
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: courier-web
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - port: 8080
+---
+# Only the service apps may call the API; it is not exposed outside the cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-allow-from-apps
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: d-services
+      ports:
+        - port: 3000

@@ -1,0 +1,28 @@
+# Development environment: one replica of each, no autoscaling headroom.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: d-services-dev
+resources:
+  - ../../base
+images:
+  # Replace 111111111111 with the AWS account ID. CI sets the tag to the commit SHA.
+  - name: d-services/api
+    newName: 111111111111.dkr.ecr.ap-southeast-2.amazonaws.com/d-services/api
+    newTag: latest
+  - name: d-services/courier-web
+    newName: 111111111111.dkr.ecr.ap-southeast-2.amazonaws.com/d-services/courier-web
+    newTag: latest
+patches:
+  - target: { kind: Deployment }
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target: { kind: HorizontalPodAutoscaler, name: api }
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2

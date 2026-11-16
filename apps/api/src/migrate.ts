@@ -6,8 +6,25 @@ import { tx } from './db.js';
 
 const MIGRATIONS_DIR = fileURLToPath(new URL('../migrations', import.meta.url));
 
-/** Apply any SQL files in migrations/ that have not run yet, in filename order. */
+/** Arbitrary constant identifying the migration lock in pg_advisory_lock. */
+const MIGRATION_LOCK_ID = 4_815_162_342;
+
+/**
+ * Apply any SQL files in migrations/ that have not run yet, in filename order.
+ * Holds a database lock so that several API replicas starting together do not migrate at once.
+ */
 export async function migrate(db: Db): Promise<string[]> {
+  const lock = await db.connect();
+  try {
+    await lock.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_ID]);
+    return await runMigrations(db);
+  } finally {
+    await lock.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_ID]).catch(() => undefined);
+    lock.release();
+  }
+}
+
+async function runMigrations(db: Db): Promise<string[]> {
   await db.query(
     'CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())',
   );

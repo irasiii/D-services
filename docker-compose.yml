@@ -1,7 +1,10 @@
-# Local development database. Credentials here are for local use only.
+# Local development.
+#   docker compose up -d db                  -> only PostgreSQL (run the apps with npm)
+#   docker compose --profile app up --build  -> PostgreSQL + API + courier app in containers
+# Credentials here are for local use only.
 services:
   db:
-    image: postgres:16
+    image: public.ecr.aws/docker/library/postgres:16-alpine
     environment:
       POSTGRES_USER: dservices
       POSTGRES_PASSWORD: dservices
@@ -10,5 +13,42 @@ services:
       - "5432:5432"
     volumes:
       - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dservices"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://dservices:dservices@db:5432/dservices
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  courier-web:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/courier-web/Dockerfile
+    environment:
+      API_UPSTREAM: http://api:3000
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
 volumes:
   dbdata:
