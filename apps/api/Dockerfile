@@ -2,7 +2,7 @@
 # Build from the repository root:  docker build -f apps/api/Dockerfile -t d-services/api .
 # Base images come from Amazon ECR Public (no Docker Hub pull limits on AWS).
 
-FROM public.ecr.aws/docker/library/node:22-alpine AS base
+FROM public.ecr.aws/docker/library/node:26-alpine AS base
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/charging/package.json packages/charging/
@@ -18,7 +18,7 @@ RUN npm run build -w @d-services/charging && npm run build -w @d-services/api
 FROM base AS prod-deps
 RUN npm ci --omit=dev -w @d-services/api -w @d-services/charging && npm cache clean --force
 
-FROM public.ecr.aws/docker/library/node:22-alpine AS runtime
+FROM public.ecr.aws/docker/library/node:26-alpine AS runtime
 ENV NODE_ENV=production PORT=3000
 WORKDIR /app
 COPY --from=prod-deps /app/node_modules node_modules
