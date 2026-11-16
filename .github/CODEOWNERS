@@ -1,0 +1,5 @@
+# Default owner for everything in the repo
+*                    @irasiii
+# Pipeline and security policy changes always need owner review
+/.github/            @irasiii
+/SECURITY.md         @irasiii

@@ -1,0 +1,25 @@
+name: PR Jira key
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  check-title:
+    name: PR title has a DS work item key
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if printf '%s' "$PR_TITLE" | grep -Eq '^DS-[0-9]+([ :]|$)'; then
+            echo "OK: $PR_TITLE"
+          else
+            echo "::error::PR title must start with a Jira key, e.g. 'DS-12 Add login endpoint'"
+            exit 1
+          fi
