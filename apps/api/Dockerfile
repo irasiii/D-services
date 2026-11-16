@@ -28,6 +28,9 @@ COPY --from=build /app/packages/charging/dist packages/charging/dist
 COPY --from=build /app/apps/api/package.json apps/api/
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY apps/api/migrations apps/api/migrations
+# Amazon RDS certificate authorities, so the API can verify the database's TLS certificate
+ADD --chmod=644 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/rds-global-bundle.pem
 # Run as the unprivileged "node" user (uid 1000) that ships with the image
 USER 1000
 EXPOSE 3000

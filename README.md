@@ -26,6 +26,7 @@ packages/charging/     Shared charging rules: fee split, platform pricing, vehic
 apps/api/              Core platform API: customers, providers, services, jobs, bids, charges (Fastify + PostgreSQL)
 apps/courier-web/      First service app: courier (React + Vite) with customer, driver and company views
 deploy/k8s/            Kubernetes manifests for AWS EKS (Kustomize: base + dev and prod overlays)
+infra/terraform/       AWS foundation as code: VPC, EKS, ECR, RDS, GitHub sign-in role
 .github/workflows/     CI and DevSecOps pipelines
 ```
 
@@ -67,7 +68,8 @@ the same images that run on Kubernetes.
 ## Deploying to AWS
 
 The platform runs as Docker containers on Kubernetes (Amazon EKS), with images
-in Amazon ECR and the database on Amazon RDS for PostgreSQL. See
+in Amazon ECR and the database on Amazon RDS for PostgreSQL. Create the AWS
+resources with [infra/terraform](infra/terraform/README.md), then deploy with
 [deploy/README.md](deploy/README.md).
 
 ## Tests
@@ -112,7 +114,7 @@ what the customer pays, what the company keeps, what the provider receives.
 - **Sign-in and permissions.** The API has no authentication: anyone who can reach it can call any endpoint. Do not expose it to the internet until this is done.
 - **Payments.** Charges are ledger records; no payment gateway is connected.
 - **Address search and road distance.** The app uses preset locations and straight-line distance.
-- **AWS infrastructure.** The images and Kubernetes manifests exist; the EKS cluster, ECR repositories and RDS database are not created yet.
+- **AWS infrastructure.** The images, Kubernetes manifests and Terraform exist; nothing has been created in AWS or deployed yet.
 - **Mobile apps**, and the apps for the other five services.
 
 ## Pipelines
@@ -123,6 +125,7 @@ what the customer pays, what the company keeps, what the provider receives.
 | `security.yml` | push to `main`, PRs, weekly | Gitleaks secret scan, Trivy dependency / IaC / secret scan (fails on fixable HIGH or CRITICAL), dependency review on PRs, SPDX SBOM artifact |
 | `codeql.yml` | push to `main`, PRs, weekly | CodeQL static analysis of the TypeScript code and the workflows |
 | `containers.yml` | push to `main`, PRs | Lints the Dockerfiles, builds both images, scans them with Trivy (fails on fixable HIGH or CRITICAL), validates the Kubernetes manifests; pushes images to Amazon ECR once AWS is connected |
+| `infrastructure.yml` | changes under `infra/` | Terraform format check and validation |
 | `pr-jira-key.yml` | PRs | PR title must start with a Jira key, e.g. `DS-12 Add login endpoint` |
 
 All third-party actions are pinned to commit SHAs and kept current by Dependabot.
