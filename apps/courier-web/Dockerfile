@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Build from the repository root:  docker build -f apps/courier-web/Dockerfile -t d-services/courier-web .
 
-FROM public.ecr.aws/docker/library/node:22-alpine AS build
+FROM public.ecr.aws/docker/library/node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/charging/package.json packages/charging/
