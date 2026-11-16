@@ -1,0 +1,25 @@
+{
+  "name": "d-services",
+  "private": true,
+  "description": "D-services: one platform for delivery services (courier, removals, freight, earthworks, food, rides)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "npm run build -w @d-services/charging && npm run build -w @d-services/api && npm run build -w @d-services/courier-web",
+    "lint": "npm run build -w @d-services/charging && npm run typecheck --workspaces --if-present",
+    "test": "npm run build -w @d-services/charging && npm test --workspaces --if-present",
+    "migrate": "npm run migrate -w @d-services/api",
+    "dev:api": "npm run build -w @d-services/charging && npm run dev -w @d-services/api",
+    "dev:courier": "npm run dev -w @d-services/courier-web"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "~5.9",
+    "vitest": "^5.1.0"
+  }
+}

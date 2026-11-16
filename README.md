@@ -4,6 +4,13 @@
 [![Security](https://github.com/irasiii/D-services/actions/workflows/security.yml/badge.svg)](https://github.com/irasiii/D-services/actions/workflows/security.yml)
 [![CodeQL](https://github.com/irasiii/D-services/actions/workflows/codeql.yml/badge.svg)](https://github.com/irasiii/D-services/actions/workflows/codeql.yml)
 
+One company, every kind of delivery: courier, removals, heavy freight (within and
+between states), earth removal, food delivery and rides. Providers register with
+their own vehicle and licence, whatever its size. Each service has its own app;
+all apps share one core platform that manages customers, providers, services and
+charging. The company earns a percentage or a fixed fee per job, set per service
+and adjustable per provider.
+
 ## Where things live
 
 | What | Where |
@@ -15,23 +22,92 @@
 ## Repository layout
 
 ```
-.github/workflows/   CI and DevSecOps pipelines
-docs/                Docs that should version with the code
-src/                 Application code
-tests/               Tests
+packages/charging/     Shared charging rules: fee split, platform pricing, vehicle classes (pure TypeScript)
+apps/api/              Core platform API: customers, providers, services, jobs, bids, charges (Fastify + PostgreSQL)
+apps/courier-web/      First service app: courier (React + Vite) with customer, driver and company views
+.github/workflows/     CI and DevSecOps pipelines
 ```
+
+Each new service gets its own app under `apps/` and reuses the same API.
+
+## Run it locally
+
+Needs Node.js 22+ and Docker (for PostgreSQL).
+
+```
+docker compose up -d                 # PostgreSQL on localhost:5432
+npm install
+copy .env.example .env               # Windows (use cp on macOS/Linux)
+
+# Terminal 1: API on http://localhost:3000 (applies database migrations on start)
+set DATABASE_URL=postgres://dservices:dservices@localhost:5432/dservices
+npm run dev:api
+
+# Terminal 2: courier app on http://localhost:5173
+npm run dev:courier
+```
+
+In PowerShell use `$env:DATABASE_URL="postgres://..."` instead of `set`.
+
+Try the whole flow in the courier app: register a customer and book a delivery
+(**Send a parcel**), register a driver (**Drive**), approve the driver
+(**Company**), then accept, pick up and deliver the job. The charge appears
+under **Company** with the company fee and the driver payout.
+
+## Tests
+
+```
+set TEST_DATABASE_URL=postgres://dservices:dservices@localhost:5432/dservices_test
+npm test          # charging unit tests + API tests against a real PostgreSQL
+npm run lint      # TypeScript type checks
+```
+
+The API tests wipe the database they are pointed at, so use a separate one
+(`docker compose exec db createdb -U dservices dservices_test`).
+
+## How charging works
+
+| Service | Price is set by | Company fee (default) |
+| --- | --- | --- |
+| Courier | Platform (base + per km, scaled by vehicle size) | 15% |
+| Food delivery | Platform | 20% |
+| Rides | Platform | 20% |
+| Removals | Provider bids, customer picks one | 10% |
+| Heavy freight | Provider bids | $50 fixed |
+| Earth removal | Provider bids | $40 fixed |
+
+These are starting values, changeable through `PATCH /services/:id`. A provider
+can have a negotiated fee per service (`PUT /providers/:id/services/:serviceId`)
+that overrides the default. When a job is completed, one charge is recorded:
+what the customer pays, what the company keeps, what the provider receives.
+
+## API overview
+
+| Area | Endpoints |
+| --- | --- |
+| Services | `GET /services`, `GET /services/:id`, `PATCH /services/:id` |
+| Customers | `POST /customers`, `GET /customers`, `GET /customers/:id`, `POST /customers/:id/block`, `/unblock` |
+| Providers | `POST /providers`, `GET /providers`, `GET /providers/:id`, `POST /providers/:id/approve`, `/suspend`, `PUT /providers/:id/services/:serviceId` |
+| Jobs | `POST /quotes`, `POST /jobs`, `GET /jobs`, `GET /jobs/:id`, `POST /jobs/:id/accept`, `/bids`, `/bids/:bidId/accept`, `/start`, `/complete`, `/cancel` |
+| Charges | `GET /charges`, `GET /charges/summary`, `POST /charges/:id/mark-paid` |
+
+## Not built yet
+
+- **Sign-in and permissions.** The API has no authentication: anyone who can reach it can call any endpoint. Do not expose it to the internet until this is done.
+- **Payments.** Charges are ledger records; no payment gateway is connected.
+- **Address search and road distance.** The app uses preset locations and straight-line distance.
+- **Mobile apps**, and the apps for the other five services.
 
 ## Pipelines
 
 | Workflow | Runs on | What it does |
 | --- | --- | --- |
-| `ci.yml` | push to `main`, PRs | Lints the workflows (actionlint); builds and tests whatever stack it finds (Node or Python) |
+| `ci.yml` | push to `main`, PRs | Lints workflows; type-checks, tests (with PostgreSQL) and builds everything; audits production dependencies |
 | `security.yml` | push to `main`, PRs, weekly | Gitleaks secret scan, Trivy dependency / IaC / secret scan (fails on fixable HIGH or CRITICAL), dependency review on PRs, SPDX SBOM artifact |
-| `codeql.yml` | push to `main`, PRs, weekly | CodeQL static analysis (currently the workflows; add app languages to the matrix) |
+| `codeql.yml` | push to `main`, PRs, weekly | CodeQL static analysis of the TypeScript code and the workflows |
 | `pr-jira-key.yml` | PRs | PR title must start with a Jira key, e.g. `DS-12 Add login endpoint` |
 
-Findings appear under **Security > Code scanning**. All third-party actions are
-pinned to commit SHAs and kept current by Dependabot.
+All third-party actions are pinned to commit SHAs and kept current by Dependabot.
 
 ## Working on a change
 
