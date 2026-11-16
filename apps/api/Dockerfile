@@ -20,6 +20,11 @@ RUN npm ci --omit=dev -w @d-services/api -w @d-services/charging && npm cache cl
 
 FROM public.ecr.aws/docker/library/node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000
+# The API only needs the Node.js runtime. Removing the bundled package managers also removes
+# their dependencies, which are where image scans keep finding vulnerabilities.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+      /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-*
 WORKDIR /app
 COPY --from=prod-deps /app/node_modules node_modules
 COPY --from=prod-deps /app/package.json ./

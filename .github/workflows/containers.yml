@@ -48,7 +48,16 @@ jobs:
       - name: Build image
         env:
           DOCKERFILE: ${{ matrix.dockerfile }}
-        run: docker build -f "$DOCKERFILE" -t "$IMAGE:$GITHUB_SHA" .
+        # Registries occasionally rate-limit base image pulls from shared runners, so retry.
+        run: |
+          for attempt in 1 2 3; do
+            if docker build -f "$DOCKERFILE" -t "$IMAGE:$GITHUB_SHA" .; then
+              exit 0
+            fi
+            echo "::warning::Build attempt $attempt failed; retrying in 30 seconds"
+            sleep 30
+          done
+          exit 1
 
       - name: Scan image and report to code scanning
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
